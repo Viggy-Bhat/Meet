@@ -17,6 +17,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body
         className={`${inter.className}`} 
+        suppressHydrationWarning={true}
       >
          <Header />
         <main className="min-h-screen bg-gradient-to-r from-blue-50 to-white">
