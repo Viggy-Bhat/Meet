@@ -3,6 +3,8 @@ import { getUserMeetings } from "@/actions/meetings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MeetingList from "./components/meeting-list";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "Your Meetings | Meet",
   description: "View and manage your upcoming and past meetings.",

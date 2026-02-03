@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { getUserEvents } from "@/actions/events";
 import EventCard from "@/components/event-card";
 
+export const dynamic = 'force-dynamic';
+
 export default function EventsPage() {
   return (
     <Suspense fallback={<div>Loading events...</div>}>

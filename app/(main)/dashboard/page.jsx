@@ -14,6 +14,8 @@ import { usernameSchema } from "@/app/lib/validators";
 import { getLatestUpdates } from "@/actions/dashboard";
 import { format } from "date-fns";
 
+export const dynamic = 'force-dynamic';
+
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
 
