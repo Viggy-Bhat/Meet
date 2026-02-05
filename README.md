@@ -19,7 +19,7 @@ The application seamlessly integrates with **Google Calendar** to prevent double
 -   **Availability Management**: Users can define specific working hours and days.
 -   **Custom Booking Pages**: Unique public URLs for users to share.
 -   **Responsive Design**: Optimized for mobile and desktop using Tailwind CSS.
--   **Fast Performance**: Built on Next.js 14 using Server Actions and Server Components.
+-   **Fast Performance**: Built on Next.js 16 using Server Actions and Server Components.
 
 ## 🛠️ Tech Stack
 
