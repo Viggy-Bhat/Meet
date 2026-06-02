@@ -1,0 +1,12 @@
+venv/
+uploads/
+transcripts/
+tools/
+.git/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.gitignore
+*.bat
+README.md
