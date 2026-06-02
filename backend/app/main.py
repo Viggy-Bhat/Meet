@@ -5,9 +5,13 @@ import time
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
+from app.limiter import limiter
 from app.routes import health, transcription, upload
 from app.services.transcriber import transcriber
 from app.utils.ffmpeg_check import ensure_ffmpeg
@@ -71,6 +75,9 @@ app = FastAPI(
     description="Local transcription service using faster-whisper",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
