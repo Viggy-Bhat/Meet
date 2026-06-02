@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint
+
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+
+  docker-build:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image (CPU)
+        run: |
+          cd backend
+          docker build -t meet-whisper:test .
+      - name: Test container startup
+        run: |
+          docker run -d \
+            -p 8010:8010 \
+            -e BACKEND_API_KEY=ci-test-key \
+            -e REQUIRE_AUTH_ON_LOCALHOST=false \
+            --name whisper-test \
+            meet-whisper:test
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8010/health; then
+              echo "Container healthy"
+              break
+            fi
+            echo "Waiting for container... ($i/20)"
+            sleep 5
+          done
+          curl -f http://localhost:8010/health
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop whisper-test || true
+          docker rm whisper-test || true
