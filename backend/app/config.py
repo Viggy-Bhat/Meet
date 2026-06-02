@@ -45,5 +45,15 @@ REQUIRE_AUTH_ON_LOCALHOST = (
 )
 LOG_FORMAT = os.getenv("LOG_FORMAT", "text")
 
+MAX_DOWNLOAD_SIZE_MB = int(os.getenv("MAX_DOWNLOAD_SIZE_MB", "520"))
+MAX_DOWNLOAD_SIZE_BYTES = MAX_DOWNLOAD_SIZE_MB * 1024 * 1024
+
+_ALLOWED_DOMAINS_ENV = os.getenv("ALLOWED_URL_DOMAINS", "")
+ALLOWED_URL_DOMAINS = (
+    [d.strip() for d in _ALLOWED_DOMAINS_ENV.split(",") if d.strip()]
+    if _ALLOWED_URL_DOMAINS_ENV
+    else None
+)
+
 os.makedirs(TEMP_DIR, exist_ok=True)
 os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
