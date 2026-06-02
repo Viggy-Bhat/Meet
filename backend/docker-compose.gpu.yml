@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  whisper:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    container_name: meet-whisper-gpu
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8010:8010"
+    environment:
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - WHISPER_DEVICE=cuda
+      - WHISPER_COMPUTE_TYPE=float16
+      - WHISPER_CPU_THREADS=${WHISPER_CPU_THREADS:-4}
+      - WHISPER_NUM_WORKERS=${WHISPER_NUM_WORKERS:-1}
+      - WHISPER_BEAM_SIZE=${WHISPER_BEAM_SIZE:-5}
+      - WHISPER_VAD_FILTER=${WHISPER_VAD_FILTER:-true}
+      - WHISPER_LANGUAGE=${WHISPER_LANGUAGE:-}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-500}
+      - MAX_DOWNLOAD_SIZE_MB=${MAX_DOWNLOAD_SIZE_MB:-520}
+      - BACKEND_API_KEY=${BACKEND_API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3005}
+      - REQUIRE_AUTH_ON_LOCALHOST=${REQUIRE_AUTH_ON_LOCALHOST:-true}
+      - ALLOWED_URL_DOMAINS=${ALLOWED_URL_DOMAINS:-utfs.io,ufs.sh,uploadthing.com}
+      - RATE_LIMIT_TRANSCRIBE=${RATE_LIMIT_TRANSCRIBE:-5/minute}
+      - RATE_LIMIT_UPLOAD=${RATE_LIMIT_UPLOAD:-10/minute}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+    volumes:
+      - whisper-transcripts:/app/transcripts
+      - whisper-models:/home/whisper/.cache/huggingface
+    tmpfs:
+      - /tmp/uploads:size=520M
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    runtime: nvidia
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import httpx; httpx.get('http://localhost:8010/health').raise_for_status()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  whisper-transcripts:
+    driver: local
+  whisper-models:
+    driver: local
