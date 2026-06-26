@@ -11,7 +11,7 @@ WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE") or None
 WHISPER_TASK = os.getenv("WHISPER_TASK", "transcribe")
 
 SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
-SERVER_PORT = int(os.getenv("SERVER_PORT", "8010"))
+SERVER_PORT = int(os.getenv("SERVER_PORT", os.getenv("PORT", "8010")))
 
 MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "500"))
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024

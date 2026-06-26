@@ -4,132 +4,191 @@ AI-powered meeting scheduling app. Create events, share your booking link, and l
 
 ## Features
 
-- **Event types** with custom durations and privacy settings
-- **Weekly availability** management with time gaps
-- **Public booking profiles** at `/{username}`
-- **Google Calendar & Meet integration** via Google OAuth
-- **AI meeting summaries** — upload recordings, get transcripts and structured summaries
-- **Local transcription** using faster-whisper (no cloud dependency)
-- **PDF export** of meeting summaries and transcripts
-- **Background processing** with status polling and retry support
+- **Event types** — Custom durations, descriptions, and privacy settings
+- **Weekly availability** — Define working hours with configurable time gaps between bookings
+- **Public booking pages** — Share your profile at `/{username}` for anyone to book
+- **Google Calendar & Meet** — Auto-syncs events and generates Meet links via Google OAuth
+- **AI meeting summaries** — Upload recordings, get transcripts + structured summaries (GPT-4o-mini)
+- **Local transcription** — Runs on your machine via faster-whisper (no cloud dependency)
+- **PDF export** — Download meeting summaries with full transcripts
+- **Background processing** — Long transcriptions run after the response is sent; client polls for completion
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16 App Router, React 19, Tailwind CSS v4, Shadcn UI |
-| Auth | Better Auth (Google OAuth only) |
-| Database | PostgreSQL (Neon) via Prisma ORM |
-| File Uploads | UploadThing (500MB audio/video) |
-| Transcription | Python FastAPI + faster-whisper (CTranslate2) |
-| Summarization | GPT-4o-mini via OpenRouter |
-| PDF Export | @react-pdf/renderer |
+| **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS v4, Shadcn UI |
+| **Auth** | better-auth (Google OAuth only) |
+| **Database** | PostgreSQL via Prisma ORM (Neon recommended) |
+| **File Uploads** | UploadThing (500MB max for audio/video) |
+| **Transcription** | Python FastAPI + faster-whisper (runs locally) |
+| **Summarization** | GPT-4o-mini via OpenRouter |
+| **PDF Export** | @react-pdf/renderer |
+
+## Prerequisites
+
+| Tool | Version | Notes |
+|---|---|---|
+| Node.js | 18+ | |
+| Python | 3.10+ | Only needed for the Whisper backend |
+| PostgreSQL | Any | Neon (serverless) recommended — free tier works |
+| FFmpeg | Any | Auto-bundled for Windows; install via `apt`/`brew` on Linux/Mac |
+
+You also need API keys from:
+- **Google Cloud Console** — OAuth 2.0 Client ID (for Google login + Calendar API)
+- **UploadThing** — File upload token
+- **OpenRouter** — API key for GPT-4o-mini summarization
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 18+
-- Python 3.10+ (for Whisper backend)
-- PostgreSQL database (Neon recommended)
-- FFmpeg (bundled in `backend/tools/ffmpeg/`)
-
-### 1. Clone & Install
+### 1. Clone & install
 
 ```bash
-git clone <repo>
+git clone https://github.com/your-username/meet.git
 cd meet
 npm install
 ```
 
-### 2. Environment Variables
+### 2. Set up environment variables
 
 ```bash
 cp .env.example .env
-# Edit .env with your values (see .env.example for all variables)
 ```
 
-### 3. Database
+Edit `.env` with your values. At minimum you need:
+
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Your PostgreSQL connection string (Neon dashboard) |
+| `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials |
+| `GOOGLE_CLIENT_SECRET` | Same as above |
+| `BETTER_AUTH_SECRET` | Run `openssl rand -base64 32` |
+| `UPLOADTHING_TOKEN` | UploadThing dashboard |
+| `OPENAI_API_KEY` | OpenRouter dashboard |
+| `BACKEND_API_KEY` | Run `openssl rand -hex 32` |
+
+### 3. Set up the database
 
 ```bash
 npx prisma db push
 ```
 
-### 4. Start the Whisper Backend
+### 4. Start the Whisper backend
+
+In a **separate terminal**:
 
 ```bash
+# First time: create Python virtual environment
+cd backend
+python -m venv venv
+
+# Activate it
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# Windows (Git Bash):
+source venv/Scripts/activate
+# macOS / Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the server
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8010
+
+# Or from the project root:
 npm run whisper-server
 ```
 
-### 5. Start the Frontend
+### 5. Start the frontend
 
 ```bash
-npm run dev   # http://localhost:3005
+# From the project root
+npm run dev
+```
+
+Open **http://localhost:3005** in your browser.
+
+### 6. Verify the backend
+
+```bash
+curl http://localhost:8010/health
+```
+
+Expected response:
+```json
+{ "status": "ok", "model": "base", "device": "cpu", ... }
 ```
 
 ## Project Structure
 
 ```
 meet/
-├── actions/              # Server actions (use server)
-├── app/                  # Next.js App Router
-│   ├── (auth)/           # Route group: sign-in, sign-up
-│   ├── (main)/           # Route group: dashboard, events, meetings, availability
+├── actions/              # Server actions — all DB mutation logic
+├── app/                  # Next.js App Router pages
+│   ├── (auth)/           # Sign-in / sign-up
+│   ├── (main)/           # Dashboard, events, meetings, availability
 │   ├── [username]/       # Public profile + booking pages
-│   └── api/              # API routes (auth, uploadthing, pdf)
-├── backend/              # Python Whisper server (see backend/README.md)
+│   └── api/              # API routes (auth, UploadThing, PDF)
+├── backend/              # Python Whisper transcription server
+│   ├── app/              # FastAPI app
+│   └── nginx/            # Production Nginx config
 ├── components/           # React components
-│   ├── meeting/          # AI Summary pipeline components
+│   ├── meeting/          # AI summary pipeline UI
 │   └── ui/               # Shadcn UI primitives
-├── docs/                 # Supplemental documentation
-├── hooks/                # React hooks (use-fetch)
+├── hooks/                # Custom React hooks
 ├── lib/                  # Core libraries
-│   ├── ai/               # Whisper client + summarizer
-│   └── generated/        # Prisma client (gitignored)
+│   ├── ai/               # Whisper client + OpenRouter summarizer
+│   └── generated/        # Prisma client (auto-generated, gitignored)
 ├── prisma/               # Schema + migrations
-│   └── migrations/       # DB migration history
-└── public/               # Static assets
+└── public/               # Static assets (images, icons)
 ```
 
-## Environment Variables
+## Available Commands
 
-See `.env.example` for the full list. Key variables:
+| Command | Description |
+|---|---|
+| `npm run dev` | Start Next.js dev server on port 3005 |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
+| `npm run whisper-server` | Start Python Whisper backend (port 8010) |
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `UPLOADTHING_TOKEN` | Yes | UploadThing API token |
-| `OPENAI_API_KEY` | Yes | OpenRouter API key |
-| `OPENAI_BASE_URL` | Yes | `https://openrouter.ai/api/v1` |
-| `BETTER_AUTH_SECRET` | Yes | Random secret for session signing |
-| `GOOGLE_CLIENT_ID` | Yes | From Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | Yes | From Google Cloud Console |
-| `BACKEND_API_KEY` | No | API key for Whisper backend auth |
+## How AI Summaries Work
 
-## Documentation
+1. **Upload** — After a meeting, upload the recording (MP3/WAV/MP4/M4A, up to 500MB) via UploadThing
+2. **Transcribe** — The backend downloads the file and runs **faster-whisper** locally (no data leaves your server)
+3. **Summarize** — The transcript is sent to **GPT-4o-mini** via OpenRouter, which returns:
+   - Summary (2-4 sentence overview)
+   - Key points
+   - Action items
+   - Follow-up topics
+4. **View & export** — The results appear in the meeting UI. Download as PDF with full transcript.
 
-- **[Architecture](docs/architecture.md)** — Auth flow, booking flow, AI pipeline, DB schema
-- **[Conventions](docs/conventions.md)** — Code patterns, gotchas, key files reference
-- **[Troubleshooting](docs/troubleshooting.md)** — Common issues and fixes
-- **[Implementation History](docs/implementation-history.md)** — Phase-by-phase development log
-- **[Backend README](backend/README.md)** — Python Whisper server docs
-- **[Backend Deployment](backend/DEPLOYMENT.md)** — Whisper server deployment guide (Docker, nginx)
-- **[Backend Security](backend/SECURITY.md)** — Security architecture and threat model
-- **[Full-Stack Deployment](deployment.md)** — Deploy frontend + backend to production
+All processing state is visible in the UI. If transcription fails, a retry button appears.
 
 ## Deployment
 
-See [deployment.md](deployment.md) for full-stack deployment to Vercel + VPS.
-
-## Commands
+### Frontend (Vercel)
 
 ```bash
-npm run dev            # next dev (port 3005)
-npm run build          # next build
-npm run start          # next start (production)
-npm run lint           # eslint
-npm run whisper-server # starts Python backend
+npx vercel --prod
 ```
+
+Set all `.env` variables in the Vercel dashboard.
+
+### Backend (VPS)
+
+See [backend/DEPLOYMENT.md](backend/DEPLOYMENT.md) for Docker + Nginx deployment with TLS.
+
+## Documentation
+
+- [Backend README](backend/README.md) — Whisper server setup and API reference
+- [Backend Deployment](backend/DEPLOYMENT.md) — Production deployment with Docker + Nginx
+- [Backend Security](backend/SECURITY.md) — Security architecture and threat model
+- [Architecture](docs/architecture.md) — Auth flow, booking flow, AI pipeline
+- [Code Conventions](docs/conventions.md) — Patterns, gotchas, and key files
+- [Troubleshooting](docs/troubleshooting.md) — Common issues
 
 ## License
 

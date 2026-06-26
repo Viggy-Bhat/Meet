@@ -38,8 +38,8 @@ ENV PYTHONUNBUFFERED=1 \
     LOG_FORMAT=json
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8010/health').raise_for_status()" || exit 1
+    CMD python -c "import httpx, os; p = os.getenv('PORT', '8010'); httpx.get(f'http://localhost:{p}/health').raise_for_status()" || exit 1
 
 EXPOSE 8010
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8010}
