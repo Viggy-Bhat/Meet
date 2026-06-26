@@ -1,14 +1,17 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
 import { google } from "googleapis";
+import { headers } from "next/headers";
+import { z } from "zod";
+import { bookingSchema } from "@/lib/validators";
 
 export async function createBooking(bookingData) {
   try {
-    // Fetch the event and its creator
+    const validated = bookingSchema.parse(bookingData);
     const event = await db.event.findUnique({
-      where: { id: bookingData.eventId },
+      where: { id: validated.eventId },
       include: { user: true },
     });
 
@@ -16,69 +19,75 @@ export async function createBooking(bookingData) {
       throw new Error("Event not found");
     }
 
-    const client = await clerkClient();
+    const persistBooking = async ({ meetLink = null, googleEventId = null, needsReconnect = false } = {}) => {
+      const booking = await db.booking.create({
+        data: {
+          eventId: event.id,
+          userId: event.userId,
+          name: validated.name,
+          email: validated.email,
+          startTime: validated.startTime,
+          endTime: validated.endTime,
+          additionalInfo: validated.additionalInfo,
+          meetLink,
+          googleEventId,
+        },
+      });
 
-    // Get the event creator's Google OAuth token from Clerk
-    const { data } = await client.users.getUserOauthAccessToken(
-      event.user.clerkUserId,
-      "oauth_google"
-    );
+      return { success: true, booking, meetLink, needsReconnect };
+    };
 
-    const token = data[0]?.token;
+    const tokenResult = await auth.api
+      .getAccessToken({
+        body: { providerId: "google", userId: event.user.id },
+        headers: await headers(),
+      })
+      .catch(() => null);
 
-    if (!token) {
-      throw new Error("Event creator has not connected Google Calendar");
+    if (!tokenResult?.accessToken) {
+      return await persistBooking({ needsReconnect: true });
     }
 
-    // Set up Google OAuth client
     const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({ access_token: token });
+    oauth2Client.setCredentials({ access_token: tokenResult.accessToken });
 
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-    // Create Google Meet link
-    const meetResponse = await calendar.events.insert({
-      calendarId: "primary",
-      conferenceDataVersion: 1,
-      requestBody: {
-        summary: `${bookingData.name} - ${event.title}`,
-        description: bookingData.additionalInfo,
-        start: { 
-    dateTime: new Date(bookingData.startTime).toISOString(),
-    timeZone: "Asia/Kolkata" // 👈 Optional: Forces the correct display time
-  },
-  end: { 
-    dateTime: new Date(bookingData.endTime).toISOString(),
-    timeZone: "Asia/Kolkata"
-  },
-        attendees: [{ email: bookingData.email }, { email: event.user.email }],
-        conferenceData: {
-          createRequest: { requestId: `${event.id}-${Date.now()}` },
+    try {
+      const meetResponse = await calendar.events.insert({
+        calendarId: "primary",
+        conferenceDataVersion: 1,
+        requestBody: {
+          summary: `${validated.name} - ${event.title}`,
+          description: validated.additionalInfo,
+          start: {
+            dateTime: new Date(validated.startTime).toISOString(),
+            timeZone: "Asia/Kolkata",
+          },
+          end: {
+            dateTime: new Date(validated.endTime).toISOString(),
+            timeZone: "Asia/Kolkata",
+          },
+          attendees: [{ email: validated.email }, { email: event.user.email }],
+          conferenceData: {
+            createRequest: { requestId: `${event.id}-${Date.now()}` },
+          },
         },
-      },
-    });
+      });
 
-    const meetLink = meetResponse.data.hangoutLink;
-    const googleEventId = meetResponse.data.id;
-
-    // Create booking in database
-    const booking = await db.booking.create({
-      data: {
-        eventId: event.id,
-        userId: event.userId,
-        name: bookingData.name,
-        email: bookingData.email,
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime,
-        additionalInfo: bookingData.additionalInfo,
-        meetLink,
-        googleEventId,
-      },
-    });
-
-    return { success: true, booking, meetLink };
+      return await persistBooking({
+        meetLink: meetResponse.data.hangoutLink || null,
+        googleEventId: meetResponse.data.id || null,
+      });
+    } catch (error) {
+      console.warn("Google Calendar insert failed, saving booking without Meet link:", error);
+      return await persistBooking({ needsReconnect: true });
+    }
   } catch (error) {
     console.error("Error creating booking:", error);
-    return { success: false, error: error.message };
+    if (error instanceof z.ZodError) {
+      return { success: false, error: "Invalid booking data. Please check your inputs." };
+    }
+    return { success: false, error: "Something went wrong. Please try again." };
   }
 }

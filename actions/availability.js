@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import {
   startOfDay,
   addDays,
@@ -10,16 +11,27 @@ import {
   isBefore,
   addMinutes,
 } from "date-fns";
+import { availabilitySchema } from "@/lib/validators";
 
-export async function getUserAvailability() {
-  const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+async function getSessionUser() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) throw new Error("Unauthorized");
 
   const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
+    where: { id: session.user.id },
+  });
+  if (!user) throw new Error("User not found");
+
+  return user;
+}
+
+export async function getUserAvailability() {
+  const user = await getSessionUser();
+
+  const userWithAvailability = await db.user.findUnique({
+    where: { id: user.id },
     include: {
       availability: {
         include: { days: true },
@@ -27,12 +39,11 @@ export async function getUserAvailability() {
     },
   });
 
-  if (!user || !user.availability) {
+  if (!userWithAvailability || !userWithAvailability.availability) {
     return null;
   }
 
-  // Transform the availability data into the format expected by the form
-  const availabilityData = { timeGap: user.availability.timeGap };
+  const availabilityData = { timeGap: userWithAvailability.availability.timeGap };
 
   [
     "monday",
@@ -43,7 +54,7 @@ export async function getUserAvailability() {
     "saturday",
     "sunday",
   ].forEach((day) => {
-    const dayAvailability = user.availability.days.find(
+    const dayAvailability = userWithAvailability.availability.days.find(
       (d) => d.day === day.toUpperCase()
     );
 
@@ -62,25 +73,23 @@ export async function getUserAvailability() {
 }
 
 export async function updateAvailability(data) {
-  const { userId } =  await auth();
+  const user = await getSessionUser();
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  availabilitySchema.parse(data);
 
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
+  const userWithAvailability = await db.user.findUnique({
+    where: { id: user.id },
     include: { availability: true },
   });
 
-  if (!user) {
+  if (!userWithAvailability) {
     throw new Error("User not found");
   }
 
   const availabilityData = Object.entries(data).flatMap(
     ([day, { isAvailable, startTime, endTime }]) => {
       if (isAvailable) {
-        const baseDate = new Date().toISOString().split("T")[0]; // Get current date in YYYY-MM-DD format
+        const baseDate = new Date().toISOString().split("T")[0];
 
         return [
           {
@@ -94,9 +103,9 @@ export async function updateAvailability(data) {
     }
   );
 
-  if (user.availability) {
+  if (userWithAvailability.availability) {
     await db.availability.update({
-      where: { id: user.availability.id },
+      where: { id: userWithAvailability.availability.id },
       data: {
         timeGap: data.timeGap,
         days: {
@@ -149,7 +158,7 @@ export async function getEventAvailability(eventId) {
 
   const { availability, bookings } = event.user;
   const startDate = startOfDay(new Date());
-  const endDate = addDays(startDate, 30); // Get availability for the next 30 days
+  const endDate = addDays(startDate, 30);
 
   const availableDates = [];
 
@@ -197,7 +206,6 @@ function generateAvailableTimeSlots(
     `${dateStr}T${endTime.toISOString().slice(11, 16)}`
   );
 
-  // If the date is today, start from the next available slot after the current time
   const now = new Date();
   if (format(now, "yyyy-MM-dd") === dateStr) {
     currentTime = isBefore(currentTime, now)

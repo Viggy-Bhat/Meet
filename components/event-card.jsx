@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import useFetch from "@/hooks/use-fetch";
-import { Link, Trash2 } from "lucide-react";
+import { Link, Trash2, Clock, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -25,7 +25,7 @@ export default function EventCard({ event, username, isPublic = false }) {
         `${window?.location.origin}/${username}/${event.id}`
       );
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+      setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy: ", err);
     }
@@ -41,7 +41,7 @@ export default function EventCard({ event, username, isPublic = false }) {
   };
 
   const handleCardClick = (e) => {
-    if (e.target.tagName !== "BUTTON" && e.target.tagName !== "SVG") {
+    if (e.target.tagName !== "BUTTON" && e.target.tagName !== "SVG" && e.target.tagName !== "svg") {
       window?.open(
         `${window?.location.origin}/${username}/${event.id}`,
         "_blank"
@@ -51,37 +51,55 @@ export default function EventCard({ event, username, isPublic = false }) {
 
   return (
     <Card
-      className="flex flex-col justify-between cursor-pointer"
+      className="group flex flex-col justify-between cursor-pointer border-border/60 hover:border-accent/30 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
       onClick={handleCardClick}
     >
       <CardHeader>
-        <CardTitle className="text-2xl">{event.title}</CardTitle>
-        <CardDescription className="flex justify-between">
-          <span>
-            {event.duration} mins | {event.isPrivate ? "Private" : "Public"}
+        <CardTitle className="font-serif text-xl">{event.title}</CardTitle>
+        <CardDescription className="flex justify-between items-center">
+          <span className="flex items-center gap-1 text-xs">
+            <Clock className="h-3 w-3" />
+            {event.duration} min
           </span>
-          <span>{event._count.bookings} Bookings</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
+            {event.isPrivate ? "Private" : "Public"}
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <p>{event.description.substring(0, event.description.indexOf("."))}.</p>
+        <p className="text-sm text-muted-foreground line-clamp-2">
+          {event.description?.substring(0, event.description.indexOf("."))}.
+        </p>
+        <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
+          <Users className="h-3 w-3" />
+          <span>{event._count.bookings} bookings</span>
+        </div>
       </CardContent>
       {!isPublic && (
         <CardFooter className="flex gap-2">
           <Button
             variant="outline"
-            onClick={handleCopy}
-            className="flex items-center"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopy();
+            }}
+            className="rounded-full"
           >
-            <Link className="mr-2 h-4 w-4" />
+            <Link className="mr-1.5 h-3.5 w-3.5" />
             {isCopied ? "Copied!" : "Copy Link"}
           </Button>
           <Button
             variant="destructive"
-            onClick={handleDelete}
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete();
+            }}
             disabled={loading}
+            className="rounded-full"
           >
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
             {loading ? "Deleting..." : "Delete"}
           </Button>
         </CardFooter>

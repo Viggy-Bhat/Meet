@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Drawer,
@@ -14,15 +14,12 @@ import { Button } from "@/components/ui/button";
 import EventForm from "./event-form";
 
 export default function CreateEventDrawer() {
-  const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    const create = searchParams.get("create");
-    if (create === "true") {
-      setIsOpen(true);
-    }
+  React.useEffect(() => {
+    setIsOpen(searchParams.get("create") === "true");
   }, [searchParams]);
 
   // State can be exposed to our app in case we want to manually open the drawer 👇

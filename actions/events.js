@@ -1,25 +1,28 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
-import { eventSchema } from "@/app/lib/validators";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { eventSchema } from "@/lib/validators";
 
-export async function createEvent(data) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const validatedData = eventSchema.parse(data);
+async function getSessionUser() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) throw new Error("Unauthorized");
 
   const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
+    where: { id: session.user.id },
   });
+  if (!user) throw new Error("User not found");
 
-  if (!user) {
-    throw new Error("User not found");
-  }
+  return user;
+}
+
+export async function createEvent(data) {
+  const user = await getSessionUser();
+
+  const validatedData = eventSchema.parse(data);
 
   const event = await db.event.create({
     data: {
@@ -32,18 +35,7 @@ export async function createEvent(data) {
 }
 
 export async function getUserEvents() {
-  const { userId } = await auth();
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const user = await getSessionUser();
 
   const events = await db.event.findMany({
     where: { userId: user.id },
@@ -59,18 +51,7 @@ export async function getUserEvents() {
 }
 
 export async function deleteEvent(eventId) {
-  const { userId } = await auth();
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const user = await getSessionUser();
 
   const event = await db.event.findUnique({
     where: { id: eventId },
@@ -91,6 +72,7 @@ export async function getEventDetails(username, eventId) {
   const event = await db.event.findFirst({
     where: {
       id: eventId,
+      isPrivate: false,
       user: {
         username: username,
       },
@@ -99,7 +81,6 @@ export async function getEventDetails(username, eventId) {
       user: {
         select: {
           name: true,
-          email: true,
           imageUrl: true,
         },
       },

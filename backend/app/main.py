@@ -44,8 +44,8 @@ async def lifespan(app: FastAPI):
 
     backend_key = os.getenv("BACKEND_API_KEY", "")
     if not backend_key:
-        logger.critical(
-            "BACKEND_API_KEY not configured — server will refuse all authenticated requests"
+        logger.warning(
+            "BACKEND_API_KEY not configured — localhost transcription is allowed, but authenticated uploads still require a key"
         )
 
     ffmpeg_path = ensure_ffmpeg()

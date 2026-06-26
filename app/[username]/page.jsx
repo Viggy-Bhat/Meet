@@ -8,9 +8,7 @@ export async function generateMetadata(props) {
   const user = await getUserByUsername(params.username);
 
   if (!user) {
-    return {
-      title: "User Not Found",
-    };
+    return { title: "User Not Found" };
   }
 
   return {
@@ -28,23 +26,27 @@ export default async function UserProfilePage(props) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col items-center mb-8">
-        <Avatar className="w-24 h-24 mb-4">
+    <div className="container mx-auto px-4 py-12">
+      <div className="flex flex-col items-center mb-12">
+        <Avatar className="h-24 w-24 mb-5 ring-4 ring-border/40 shadow-lg">
           <AvatarImage src={user.imageUrl} alt={user.name} />
-          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+          <AvatarFallback className="font-serif text-2xl">
+            {user.name.charAt(0)}
+          </AvatarFallback>
         </Avatar>
-        <h1 className="text-3xl font-bold mb-2">{user.name}</h1>
-        <p className="text-gray-600 text-center">
+        <h1 className="font-serif text-3xl font-bold mb-2">{user.name}</h1>
+        <p className="text-muted-foreground text-center max-w-md">
           Welcome to my scheduling page. Please select an event below to book a
           call with me.
         </p>
       </div>
 
       {user.events.length === 0 ? (
-        <p className="text-center text-gray-600">No public events available.</p>
+        <p className="text-center text-muted-foreground py-12">
+          No public events available.
+        </p>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
           {user.events.map((event) => (
             <EventCard
               key={event.id}

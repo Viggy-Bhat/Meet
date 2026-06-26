@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createBooking } from "@/actions/bookings";
-import { bookingSchema } from "@/app/lib/validators";
+import { bookingFormSchema } from "@/lib/validators";
 import "react-day-picker/style.css";
 import useFetch from "@/hooks/use-fetch";
+import { CheckCircle2 } from "lucide-react";
 
 export default function BookingForm({ event, availability }) {
   const [selectedDate, setSelectedDate] = useState(null);
@@ -23,7 +24,7 @@ export default function BookingForm({ event, availability }) {
     formState: { errors },
     setValue,
   } = useForm({
-    resolver: zodResolver(bookingSchema),
+    resolver: zodResolver(bookingFormSchema),
   });
 
   useEffect(() => {
@@ -41,12 +42,7 @@ export default function BookingForm({ event, availability }) {
   const { loading, data, fn: fnCreateBooking } = useFetch(createBooking);
 
   const onSubmit = async (data) => {
-    console.log("Form submitted with data:", data);
-
-    if (!selectedDate || !selectedTime) {
-      console.error("Date or time not selected");
-      return;
-    }
+    if (!selectedDate || !selectedTime) return;
 
     const startTime = new Date(
       `${format(selectedDate, "yyyy-MM-dd")}T${selectedTime}`
@@ -75,19 +71,28 @@ export default function BookingForm({ event, availability }) {
 
   if (data) {
     return (
-      <div className="text-center p-10 border bg-white">
-        <h2 className="text-2xl font-bold mb-4">Booking successful!</h2>
+      <div className="flex-1 p-8 lg:p-10 text-center bg-card border border-border/40 rounded-2xl">
+        <div className="h-16 w-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle2 className="h-8 w-8 text-accent" />
+        </div>
+        <h2 className="font-serif text-2xl font-bold mb-4">
+          Booking confirmed!
+        </h2>
         {data.meetLink && (
-          <p>
-            Join the meeting:{" "}
+          <div className="inline-flex items-center gap-3 p-3 rounded-xl bg-muted">
             <a
               href={data.meetLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
+              className="text-sm text-primary hover:underline font-medium"
             >
               {data.meetLink}
             </a>
+          </div>
+        )}
+        {data.needsReconnect && (
+          <p className="text-muted-foreground mt-3">
+            The host will send you the meeting link shortly.
           </p>
         )}
       </div>
@@ -95,31 +100,31 @@ export default function BookingForm({ event, availability }) {
   }
 
   return (
-    <div className="flex flex-col gap-8 p-10 border bg-white">
-      <div className="md:h-96 flex flex-col md:flex-row gap-5 ">
-        <div className="w-full">
+    <div className="flex-1 p-8 lg:p-10 bg-card border border-border/40 rounded-2xl">
+      <div className="flex flex-col gap-6">
+        <div>
           <DayPicker
             mode="single"
             selected={selectedDate}
             onSelect={(date) => {
               setSelectedDate(date);
-              setSelectedTime(null); // Reset selected time when date changes
+              setSelectedTime(null);
             }}
             disabled={[{ before: new Date() }]}
             modifiers={{ available: availableDays }}
             modifiersStyles={{
               available: {
-                background: "lightblue",
+                background: "var(--color-accent)",
+                color: "white",
                 borderRadius: 100,
               },
             }}
           />
         </div>
-        <div className="w-full h-full md:overflow-scroll no-scrollbar">
-          {/* add hide scroll bar code */}
+        <div className="max-h-48 overflow-y-auto no-scrollbar">
           {selectedDate && (
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">
+            <div>
+              <h3 className="font-serif text-lg font-semibold mb-3">
                 Available Time Slots
               </h3>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
@@ -128,6 +133,7 @@ export default function BookingForm({ event, availability }) {
                     key={slot}
                     variant={selectedTime === slot ? "default" : "outline"}
                     onClick={() => setSelectedTime(slot)}
+                    className="rounded-lg text-sm"
                   >
                     {slot}
                   </Button>
@@ -138,11 +144,15 @@ export default function BookingForm({ event, availability }) {
         </div>
       </div>
       {selectedTime && (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-6">
           <div>
-            <Input {...register("name")} placeholder="Your Name" />
+            <Input
+              {...register("name")}
+              placeholder="Your Name"
+              className="rounded-lg"
+            />
             {errors.name && (
-              <p className="text-red-500 text-sm">{errors.name.message}</p>
+              <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>
             )}
           </div>
           <div>
@@ -150,18 +160,24 @@ export default function BookingForm({ event, availability }) {
               {...register("email")}
               type="email"
               placeholder="Your Email"
+              className="rounded-lg"
             />
             {errors.email && (
-              <p className="text-red-500 text-sm">{errors.email.message}</p>
+              <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
             )}
           </div>
           <div>
             <Textarea
               {...register("additionalInfo")}
               placeholder="Additional Information"
+              className="rounded-lg"
             />
           </div>
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-full"
+          >
             {loading ? "Scheduling..." : "Schedule Event"}
           </Button>
         </form>

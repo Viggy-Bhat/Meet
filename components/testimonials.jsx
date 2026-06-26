@@ -2,7 +2,7 @@
 import { Carousel, CarouselContent, CarouselItem } from './ui/carousel';
 import { Card, CardContent } from './ui/card';
 import Autoplay from "embla-carousel-autoplay"
-import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
 const testimonials = [

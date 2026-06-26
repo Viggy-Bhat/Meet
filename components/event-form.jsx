@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { eventSchema } from "@/app/lib/validators";
+import { eventSchema } from "@/lib/validators";
 import { createEvent } from "@/actions/events";
 import { useRouter } from "next/navigation";
 import useFetch from "@/hooks/use-fetch";
@@ -36,78 +36,54 @@ const EventForm = ({ onSubmitForm, initialData = {} }) => {
   const { loading, error, fn: fnCreateEvent } = useFetch(createEvent);
 
   const onSubmit = async (data) => {
-    await fnCreateEvent(data);
-    if (!loading && !error) onSubmitForm();
-    router.refresh(); // Refresh the page to show updated data
+    try {
+      await fnCreateEvent(data);
+      onSubmitForm();
+      router.refresh();
+    } catch {
+      // error is already set by useFetch
+    }
   };
 
   return (
-    <form
-      className="px-6 flex flex-col gap-4"
-      onSubmit={handleSubmit(onSubmit)}
-    >
+    <form className="px-6 flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
       <div>
-        <label
-          htmlFor="title"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="title" className="block text-sm font-medium mb-1.5">
           Event Title
         </label>
-
-        <Input id="title" {...register("title")} className="mt-1" />
-
+        <Input id="title" {...register("title")} className="rounded-lg" />
         {errors.title && (
           <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>
         )}
       </div>
 
       <div>
-        <label
-          htmlFor="description"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="description" className="block text-sm font-medium mb-1.5">
           Description
         </label>
-
-        <Textarea
-          {...register("description")}
-          id="description"
-          className="mt-1"
-        />
+        <Textarea {...register("description")} id="description" className="rounded-lg" />
         {errors.description && (
-          <p className="text-red-500 text-xs mt-1">
-            {errors.description.message}
-          </p>
+          <p className="text-red-500 text-xs mt-1">{errors.description.message}</p>
         )}
       </div>
 
       <div>
-        <label
-          htmlFor="duration"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="duration" className="block text-sm font-medium mb-1.5">
           Duration (minutes)
         </label>
-
         <Input
           id="duration"
-          {...register("duration", {
-            valueAsNumber: true,
-          })}
+          {...register("duration", { valueAsNumber: true })}
           type="number"
-          className="mt-1"
+          className="rounded-lg"
         />
-
         {errors.duration && (
           <p className="text-red-500 text-xs mt-1">{errors.duration.message}</p>
         )}
       </div>
 
       <div>
-        <label
-          htmlFor="isPrivate"
-          className="block text-sm font-medium text-gray-700"
-        >
+        <label htmlFor="isPrivate" className="block text-sm font-medium mb-1.5">
           Event Privacy
         </label>
         <Controller
@@ -118,7 +94,7 @@ const EventForm = ({ onSubmitForm, initialData = {} }) => {
               onValueChange={(value) => field.onChange(value === "true")}
               value={field.value ? "true" : "false"}
             >
-              <SelectTrigger className="mt-1">
+              <SelectTrigger className="rounded-lg">
                 <SelectValue placeholder="Select privacy" />
               </SelectTrigger>
               <SelectContent>
@@ -130,9 +106,9 @@ const EventForm = ({ onSubmitForm, initialData = {} }) => {
         />
       </div>
 
-      {error && <p className="text-red-500 text-xs mt-1">{error.message}</p>}
+      {error && <p className="text-red-500 text-xs">{error.message}</p>}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="rounded-full mt-2">
         {loading ? "Submitting..." : "Create Event"}
       </Button>
     </form>

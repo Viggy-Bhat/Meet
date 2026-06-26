@@ -11,6 +11,8 @@ const csp = [
   `form-action 'self'`,
   `media-src 'self' https://utfs.io https://*.utfs.io`,
   `worker-src 'self' blob:`,
+  `object-src 'none'`,
+  `report-uri /api/csp-report`,
 ].join("; ");
 
 /** @type {import('next').NextConfig} */

@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import uuid
 
 from fastapi import APIRouter, UploadFile, File, Request, HTTPException, Query
@@ -11,6 +12,8 @@ from app.models.schemas import UploadResponse, TranscriptRecord, ErrorResponse
 from app.services.transcriber import transcriber, _seconds_to_srt_time
 from app.services.storage import save_transcript, get_transcript
 from app.utils.auth import verify_api_key
+
+_VALID_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 from app.utils.file_handler import (
     validate_upload,
     generate_unique_name,
@@ -94,6 +97,9 @@ async def upload(
 async def get_transcript_by_id(transcript_id: str, request: Request):
     verify_api_key(request, require_on_localhost=False)
 
+    if not _VALID_ID_RE.match(transcript_id):
+        raise HTTPException(status_code=400, detail="Invalid transcript ID format")
+
     record = get_transcript(transcript_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Transcript not found")
@@ -115,6 +121,9 @@ async def get_transcript_by_id(transcript_id: str, request: Request):
 )
 async def get_transcript_srt(transcript_id: str, request: Request):
     verify_api_key(request, require_on_localhost=False)
+
+    if not _VALID_ID_RE.match(transcript_id):
+        raise HTTPException(status_code=400, detail="Invalid transcript ID format")
 
     record = get_transcript(transcript_id)
     if record is None:

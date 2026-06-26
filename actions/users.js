@@ -1,32 +1,51 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { usernameSchema } from "@/lib/validators";
+
+const RESERVED_USERNAMES = [
+  "api",
+  "admin",
+  "dashboard",
+  "events",
+  "meetings",
+  "availability",
+  "sign-in",
+  "sign-up",
+  "signin",
+  "signup",
+  "_next",
+  "favicon",
+  "assets",
+  "static",
+];
 
 export async function updateUsername(username) {
-  const { userId } = await auth();
-  if (!userId) {
-    throw new Error("Unauthorized");
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) throw new Error("Unauthorized");
+
+  const validated = usernameSchema.parse({ username });
+  username = validated.username;
+
+  if (RESERVED_USERNAMES.includes(username.toLowerCase())) {
+    throw new Error("This username is reserved and cannot be used");
   }
 
-  // Check if username is already taken
   const existingUser = await db.user.findUnique({
     where: { username },
   });
 
-  if (existingUser && existingUser.id !== userId) {
+  if (existingUser && existingUser.id !== session.user.id) {
     throw new Error("Username is already taken");
   }
 
-  // Update username in database
   await db.user.update({
-    where: { clerkUserId: userId },
+    where: { id: session.user.id },
     data: { username },
-  });
-
-  // Update username in Clerk
-  await clerkClient.users.updateUser(userId, {
-    username,
   });
 
   return { success: true };
@@ -38,7 +57,6 @@ export async function getUserByUsername(username) {
     select: {
       id: true,
       name: true,
-      email: true,
       imageUrl: true,
       events: {
         where: {

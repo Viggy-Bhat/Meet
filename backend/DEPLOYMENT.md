@@ -1,5 +1,71 @@
 # Deployment Guide — Meet Whisper Server
 
+> ⚠️ **Before you deploy**, complete Phase 0 below. Rotating secrets after deployment is painful.
+
+---
+
+## Phase 0: Pre-Deployment Security Checklist
+
+Complete these steps **before** deploying to production:
+
+### 0.1 — Rotate All Secrets
+
+Generate **separate** production secrets. Do not reuse your local `.env` values:
+
+```bash
+# Generate production-only secrets
+BACKEND_API_KEY=$(openssl rand -hex 32)
+echo "BACKEND_API_KEY=$BACKEND_API_KEY"
+
+BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+echo "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET"
+```
+
+Set these in your production environment (VPS `.env` / Docker env / Vercel env vars), never in the repo.
+
+### 0.2 — Create a Production Database
+
+Provision a separate Neon (or equivalent) PostgreSQL database — do not share the dev database.
+
+### 0.3 — Set Up Production OAuth Credentials
+
+Create new Google OAuth credentials in [Google Cloud Console](https://console.cloud.google.com) with your production domain as the authorized origin/redirect URI.
+
+### 0.4 — Set Production UploadThing Token
+
+Generate a new UploadThing token for your production domain in the [UploadThing dashboard](https://uploadthing.com).
+
+### 0.5 — Verify Backend Auth Configuration
+
+Ensure these env vars are set on the production server:
+
+| Variable | Value |
+|----------|-------|
+| `BACKEND_API_KEY` | Production key (from 0.1) |
+| `REQUIRE_AUTH_ON_LOCALHOST` | `true` |
+| `CORS_ORIGINS` | `https://your-frontend-domain.com` |
+| `ALLOWED_URL_DOMAINS` | `utfs.io,ufs.sh,uploadthing.com` |
+
+### 0.6 — Enable Production-Grade Rate Limiting
+
+In production with multiple containers, switch from in-memory to Redis-backed rate limiting:
+
+```bash
+# Add to docker-compose.yml as a service:
+#   redis:
+#     image: redis:7-alpine
+#     restart: unless-stopped
+
+# Set on the whisper service:
+RATE_LIMIT_STORAGE=redis://redis:6379/0
+```
+
+### 0.7 — Audit CSP for Production
+
+The frontend CSP in `next.config.mjs` sends violations to `/api/csp-report` when configured. Verify all `connect-src` and `frame-src` domains match your production services.
+
+---
+
 ## Prerequisites
 
 ### VPS Requirements
@@ -124,7 +190,9 @@ sudo certbot --nginx -d whisper.your-domain.com
 sudo certbot renew --dry-run
 ```
 
-## Step 8: Configure Firewall
+## Step 8: Configure Firewall & Brute-Force Protection
+
+### 8a — UFW
 
 ```bash
 sudo ufw enable
@@ -134,6 +202,38 @@ sudo ufw status
 ```
 
 **Do NOT open port 8010** — NGINX proxies to it locally.
+
+### 8b — Fail2ban (Brute-Force Protection)
+
+Install and configure fail2ban to block IPs that repeatedly hit auth-protected endpoints with invalid keys:
+
+```bash
+sudo apt-get install -y fail2ban
+
+# Create a jail for the Whisper API
+sudo tee /etc/fail2ban/jail.d/whisper-backend.conf << 'EOF'
+[whisper-backend]
+enabled = true
+port = http,https
+filter = whisper-backend
+logpath = /var/log/nginx/whisper_access.log
+maxretry = 10
+findtime = 300
+bantime = 3600
+EOF
+
+# Create the filter
+sudo tee /etc/fail2ban/filter.d/whisper-backend.conf << 'EOF'
+[Definition]
+failregex = ^<HOST> .* "POST /transcribe" (401|429)
+            ^<HOST> .* "POST /transcribe-from-url" (401|429)
+            ^<HOST> .* "POST /upload" (401|429)
+ignoreregex =
+EOF
+
+sudo systemctl restart fail2ban
+sudo fail2ban-client status whisper-backend
+```
 
 ## Step 9: Update Frontend
 

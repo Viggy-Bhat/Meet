@@ -1,23 +1,35 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 
-const isProtectedRoute = createRouteMatcher([
-     '/dashboard(.*)',
-     '/events(.*)',
-     '/meetings(.*)',
-     '/availability(.*)',
-])
+const protectedPaths = [
+  "/dashboard",
+  "/events",
+  "/meetings",
+  "/availability",
+];
 
-export default clerkMiddleware(async (auth ,req)=>{
-    if( isProtectedRoute(req)){
-     await auth.protect();
+export async function proxy(request) {
+  const pathname = request.nextUrl.pathname;
+  const isProtected = protectedPaths.some(
+    (path) => pathname === path || pathname.startsWith(path + "/")
+  );
+
+  if (isProtected) {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      return NextResponse.redirect(new URL("/sign-in", request.url));
     }
-});
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
   ],
 };

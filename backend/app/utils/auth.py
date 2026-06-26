@@ -16,17 +16,20 @@ def is_localhost(request: Request):
 
 
 def verify_api_key(request: Request, require_on_localhost=False):
+    use_require_on_localhost = REQUIRE_AUTH_ON_LOCALHOST or require_on_localhost
+
+    if is_localhost(request) and not use_require_on_localhost:
+        if not BACKEND_API_KEY:
+            logger.warning(
+                "BACKEND_API_KEY not configured, allowing localhost request without auth"
+            )
+        return
+
     if not BACKEND_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="BACKEND_API_KEY not configured. Server refusing to start without authentication.",
+            detail="BACKEND_API_KEY not configured. Set it for authenticated requests.",
         )
-
-    if REQUIRE_AUTH_ON_LOCALHOST:
-        require_on_localhost = True
-
-    if is_localhost(request) and not require_on_localhost:
-        return
 
     api_key = request.headers.get("X-API-Key")
     if not api_key or api_key != BACKEND_API_KEY:
