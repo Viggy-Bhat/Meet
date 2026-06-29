@@ -53,3 +53,5 @@ next-env.d.ts
 !/backend/transcripts/.gitkeep
 /backend/tools/
 !/backend/tools/.gitkeep
+
+.vercel

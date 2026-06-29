@@ -3,7 +3,6 @@
 import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { after } from "next/server";
 import { transcribeRecording } from "@/lib/ai/whisper";
 import { generateSummary } from "@/lib/ai/summarize";
 import { uploadRecordingSchema } from "@/lib/validators";
@@ -57,7 +56,7 @@ export async function createRecording(data) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Internal background processor — runs inside after()                  */
+/*  Internal background processor — runs synchronously (debug mode)      */
 /* ------------------------------------------------------------------ */
 async function _runProcessing(recordingId, userId) {
   const startTime = Date.now();
@@ -91,6 +90,7 @@ async function _runProcessing(recordingId, userId) {
       data: { status: "TRANSCRIBING" },
     });
     console.log(`[Recording ${recordingId}] Status: TRANSCRIBING`);
+    console.log(`[PIPELINE ${recordingId}] Starting transcription fetch to Whisper`);
 
     let transcriptText = recording.transcript?.transcript || null;
     let transcriptResult = null;
@@ -102,6 +102,12 @@ async function _runProcessing(recordingId, userId) {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           result = await transcribeRecording(recording.fileUrl);
+          console.log(`[PIPELINE ${recordingId}] Whisper response received`, {
+            textLength: result?.text?.length,
+            language: result?.language,
+            duration: result?.duration,
+            segmentsCount: result?.segments?.length || 0,
+          });
           break;
         } catch (error) {
           lastError = error;
@@ -122,6 +128,8 @@ async function _runProcessing(recordingId, userId) {
       transcriptText = result.text;
       transcriptResult = result;
 
+      console.log(`[PIPELINE ${recordingId}] Creating transcript record`);
+
       await db.meetingTranscript.create({
         data: {
           recordingId,
@@ -131,6 +139,8 @@ async function _runProcessing(recordingId, userId) {
         },
       });
 
+      console.log(`[PIPELINE ${recordingId}] MeetingTranscript created successfully`);
+
       console.log(
         `[Recording ${recordingId}] Transcription complete. ` +
           `Lang: ${result.language}, Segments: ${result.segments?.length || 0}, ` +
@@ -139,6 +149,7 @@ async function _runProcessing(recordingId, userId) {
     }
 
     /* ---------- TRANSCRIBED ---------- */
+    console.log(`[PIPELINE ${recordingId}] Updating status -> TRANSCRIBED`);
     await db.recording.update({
       where: { id: recordingId },
       data: { status: "TRANSCRIBED" },
@@ -146,6 +157,7 @@ async function _runProcessing(recordingId, userId) {
     console.log(`[Recording ${recordingId}] Status: TRANSCRIBED`);
 
     /* ---------- SUMMARIZING ---------- */
+    console.log(`[PIPELINE ${recordingId}] Updating status -> SUMMARIZING`);
     await db.recording.update({
       where: { id: recordingId },
       data: { status: "SUMMARIZING" },
@@ -153,6 +165,7 @@ async function _runProcessing(recordingId, userId) {
     console.log(`[Recording ${recordingId}] Status: SUMMARIZING`);
 
     try {
+      console.log(`[PIPELINE ${recordingId}] Starting summary generation`);
       const summaryData = await generateSummary(transcriptText);
 
       if (recording.summary) {
@@ -178,6 +191,7 @@ async function _runProcessing(recordingId, userId) {
       }
 
       /* ---------- COMPLETED ---------- */
+      console.log(`[PIPELINE ${recordingId}] Updating status -> COMPLETED`);
       await db.recording.update({
         where: { id: recordingId },
         data: { status: "COMPLETED", errorMessage: null },
@@ -198,7 +212,8 @@ async function _runProcessing(recordingId, userId) {
       console.log(`[Recording ${recordingId}] Status: TRANSCRIBED (summary failed)`);
     }
   } catch (error) {
-    console.error(`[Recording ${recordingId}] Processing failed:`, error.message);
+    console.error(`[PIPELINE ${recordingId}] Processing failed:`, error.message);
+    console.error(`[PIPELINE ${recordingId}] Full error stack:`, error.stack);
 
     let errorMessage = error.message || "Unknown processing error";
 
@@ -253,10 +268,12 @@ export async function triggerProcessing(recordingId) {
     data: { retryCount: { increment: 1 }, status: "PROCESSING", errorMessage: null },
   });
 
-  /* Kick off background work after the response is sent */
-  after(() => _runProcessing(recordingId, user.id));
+  /* TEMP: Run synchronously for debugging — proving after() is the root cause */
+  console.log(`[Recording ${recordingId}] Starting synchronous processing (retryCount: ${recording.retryCount + 1})`);
 
-  console.log(`[Recording ${recordingId}] Background processing triggered (retryCount: ${recording.retryCount + 1})`);
+  await _runProcessing(recordingId, user.id);
+
+  console.log(`[Recording ${recordingId}] Synchronous processing finished`);
 
   return { success: true, recordingId };
 }
